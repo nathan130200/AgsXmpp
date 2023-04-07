@@ -18,25 +18,34 @@ public class Jid : IEquatable<Jid>
     {
         var at = jid.IndexOf('@');
 
-        User = jid[0..at];
-
-        var temp = jid[(at + 1)..];
-
-        var slash = temp.IndexOf('/');
-
-        if (slash == -1)
-            Server = temp;
+        if (at == -1)
+            Server = jid;
         else
         {
-            Server = temp[0..slash];
-            Resource = temp[(slash + 1)..];
+            User = jid[0..at];
+
+            var temp = jid[(at + 1)..];
+
+            var slash = temp.IndexOf('/');
+
+            if (slash == -1)
+                Server = temp;
+            else
+            {
+                Server = temp[0..slash];
+                Resource = temp[(slash + 1)..];
+            }
         }
     }
 
-    public static Jid Empty => new();
+    public static Jid Empty
+        => new();
 
-    public bool IsBare => string.IsNullOrWhiteSpace(_resource);
-    public bool IsFull => !IsBare;
+    public bool IsBare
+        => string.IsNullOrWhiteSpace(_resource);
+
+    public bool IsFull
+        => !IsBare;
 
     public Jid(string user, string server, string resource)
     {
