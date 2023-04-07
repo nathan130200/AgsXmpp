@@ -12,20 +12,8 @@ public class Stanza : DirectionalElement
 
     public string Id
     {
-        get
-        {
-            if (HasAttribute("id"))
-                return GetAttribute("id");
-
-            return string.Empty;
-        }
-        set
-        {
-            if (value is null)
-                value = string.Empty;
-
-            SetAttribute("id", value);
-        }
+        get => GetAttribute("id");
+        set => SetAttribute("id", value);
     }
 
     /// <summary>

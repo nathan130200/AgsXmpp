@@ -96,6 +96,19 @@ public class Element : ICloneable
         }
     }
 
+    public string StartTag()
+    {
+        var sb = new StringBuilder()
+            .Append('<')
+            .Append(GetElementKey(this))
+            .Append(' ');
+
+        foreach (var (key, value) in Attributes)
+            sb.AppendFormat("{0}=\"{1}\" ", key, value);
+
+        return sb.Append('>').ToString();
+    }
+
     public void SetAttributes(object attrs)
     {
         if (attrs is null)
@@ -132,50 +145,62 @@ public class Element : ICloneable
 
     public string GetAttribute(string name)
     {
-        lock (_attributes)
-        {
-            if (_attributes.TryGetValue(name, out var value))
-                return value;
+        string value = null;
 
-            return null;
-        }
+        lock (_attributes)
+            _attributes.TryGetValue(name, out value);
+
+        return value;
     }
 
-    public void RemoveAttribute(string name)
+    public bool RemoveAttribute(string name)
     {
         lock (_attributes)
-            _attributes.Remove(name);
+            return _attributes.Remove(name);
     }
 
     public void SetAttribute(string name, string value)
     {
         lock (_attributes)
-            _attributes[name] = value;
-    }
-
-    public void SetNamespace(string prefix, string xmlns)
-    {
-        var key = nameof(xmlns);
-
-        if (!string.IsNullOrWhiteSpace(prefix))
-            key += $":{prefix}";
-
-        lock (_attributes)
-            _attributes[key] = xmlns;
-    }
-
-    public void SetNamespace(string xmlns)
-    {
-        lock (_attributes)
         {
-            if (string.IsNullOrWhiteSpace(xmlns))
-                _attributes.Remove(nameof(xmlns));
+            if (value is null)
+                _attributes.Remove(name);
             else
-                _attributes[nameof(xmlns)] = xmlns;
+                _attributes[name] = value;
         }
     }
 
-    public bool IsRootElement => _parent is null;
+    public void SetNamespace(string prefix, string ns)
+    {
+        var sb = new StringBuilder("xmlns");
+
+        if (!string.IsNullOrWhiteSpace(prefix))
+            sb.Append(':').Append(prefix);
+
+        SetAttribute(sb.ToString(), ns);
+    }
+
+    public void SetNamespace(string ns)
+        => SetNamespace(default, ns);
+
+    public string Namespace
+    {
+        get => GetNamespace(Prefix);
+        set => SetAttribute(GetNamespaceKey(Prefix), value);
+    }
+
+    public string GetNamespace(string prefix, bool expandSearch = true)
+    {
+        var temp = GetAttribute(GetNamespaceKey(prefix));
+
+        if (string.IsNullOrEmpty(temp) && expandSearch)
+            return Parent?.GetNamespace(prefix);
+
+        return temp;
+    }
+
+    public bool IsRootElement
+        => _parent is null;
 
     public Element Parent
     {
@@ -187,10 +212,20 @@ public class Element : ICloneable
         }
     }
 
-    public void AddChild(Element e)
+    public Element GetRoot()
+    {
+        var temp = this;
+
+        while (!temp.IsRootElement)
+            temp = temp.Parent;
+
+        return temp;
+    }
+
+    public Element AddChild(Element e)
     {
         if (ReferenceEquals(e.Parent, this))
-            return;
+            return this;
 
         e.Parent?.RemoveChild(e);
 
@@ -198,6 +233,8 @@ public class Element : ICloneable
             _children.Add(e);
 
         e.Parent = this;
+
+        return this;
     }
 
     public void RemoveChild(Element e)
@@ -260,4 +297,89 @@ public class Element : ICloneable
 
     object ICloneable.Clone()
         => Clone();
+
+    public override string ToString()
+    {
+        return ToString(false);
+    }
+
+    public string ToString(bool indent, int indentSize = 1)
+    {
+        var sb = new StringBuilder();
+
+        using var xw = XmlWriter.Create(sb, new XmlWriterSettings
+        {
+            Indent = indent,
+            IndentChars = indent ? new string(' ', Math.Max(1, indentSize)) : string.Empty,
+            CheckCharacters = true,
+            OmitXmlDeclaration = true,
+            Encoding = Encoding.UTF8,
+            NamespaceHandling = NamespaceHandling.OmitDuplicates
+        });
+
+        ToString(this, xw);
+        xw.Flush();
+
+        return sb.ToString();
+    }
+
+    static string GetNamespaceKey(string prefix)
+    {
+        if (string.IsNullOrWhiteSpace(prefix))
+            return "xmlns";
+
+        return $"xmlns:{prefix}";
+    }
+
+    static string GetElementKey(Element el)
+    {
+        if (string.IsNullOrEmpty(el.Prefix))
+            return el.TagName;
+
+        return string.Concat(el.Prefix, ':', el.TagName);
+    }
+
+    static void ExtractFromQName(string key, out string localName, out string prefix)
+    {
+        prefix = default;
+
+        var off = key.IndexOf(':');
+
+        if (off == -1)
+            localName = key;
+        else
+        {
+            prefix = key[0..off];
+            localName = key[(off + 1)..];
+        }
+    }
+
+    static void ToString(Element el, XmlWriter xw)
+    {
+        if (string.IsNullOrEmpty(el.Prefix))
+            xw.WriteStartElement(el.TagName, el.Namespace ?? string.Empty);
+        else
+            xw.WriteStartElement(el.Prefix, el.TagName, el.Namespace ?? string.Empty);
+
+        foreach (var (key, value) in el.Attributes)
+        {
+            ExtractFromQName(key, out var localName, out var prefix);
+
+            if (prefix == "xmlns" && localName == el.Prefix)
+                continue;
+
+            if (!string.IsNullOrEmpty(prefix))
+                xw.WriteAttributeString(localName, el.GetAttribute(prefix), value);
+            else
+                xw.WriteAttributeString(localName, value);
+        }
+
+        foreach (var child in el.Children)
+            ToString(child, xw);
+
+        if (!string.IsNullOrWhiteSpace(el.Value))
+            xw.WriteString(el.Value);
+
+        xw.WriteEndElement();
+    }
 }

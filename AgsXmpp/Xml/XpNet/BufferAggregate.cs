@@ -1,6 +1,4 @@
-﻿using System.Text;
-
-namespace AgsXmpp.Xml.XpNet;
+﻿namespace AgsXmpp.Xml.XpNet;
 
 public class BufferAggregate : IDisposable
 {
@@ -117,6 +115,6 @@ public class BufferAggregate : IDisposable
     public override string ToString()
     {
         var buf = GetBuffer();
-        return Encoding.UTF8.GetString(buf, 0, buf.Length);
+        return System.Text.Encoding.UTF8.GetString(buf, 0, buf.Length);
     }
 }

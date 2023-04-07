@@ -70,4 +70,10 @@ public class Stream : Stanza
     {
         SetNamespace("stream", Xmlns.STREAM);
     }
+
+    public string Version
+    {
+        get => GetAttribute("version");
+        set => SetAttribute("version", value);
+    }
 }
