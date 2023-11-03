@@ -11,12 +11,6 @@ public class BufferedStringBuilder : IDisposable
     public BufferedStringBuilder(Encoding encoding = default)
         => Init(encoding);
 
-    public void Dispose()
-    {
-        _writer?.Clear();
-        _writer = null;
-    }
-
     void Init(Encoding enc)
     {
         _encoding = enc ?? Encoding.UTF8;
@@ -32,6 +26,12 @@ public class BufferedStringBuilder : IDisposable
     {
         _writer?.Clear();
         _writer = default;
+    }
+
+    public void Dispose()
+    {
+        Reset();
+        GC.SuppressFinalize(this);
     }
 
     public BufferedStringBuilder AppendLine()
